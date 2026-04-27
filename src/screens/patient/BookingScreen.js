@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Calendar } from 'react-native-calendars';
-import { blockedDates } from '../../data/mockData';
+import { api } from '../../api/client';
+import { blockedDates as dummyBlockedDates } from '../../data/mockData';
 import { CheckCircle, CreditCard, ChevronLeft, CalendarDays, Clock } from 'lucide-react-native';
 
 const StepDot = ({ n, active, done }) => (
@@ -35,12 +36,27 @@ const BookingScreen = ({ route, navigation }) => {
   const { dentist } = route.params;
   const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState('');
+  const [availableSlots, setAvailableSlots] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  useEffect(() => {
+    if (selectedDate) {
+      const fetchSlots = async () => {
+        try {
+          const slots = await api.getSlots(dentist.user_id || dentist.id, selectedDate);
+          setAvailableSlots(slots);
+        } catch (error) {
+          console.error('Failed to fetch slots:', error);
+        }
+      };
+      fetchSlots();
+    }
+  }, [selectedDate]);
+
   const markedDates = {
-    ...Object.keys(blockedDates).reduce((acc, date) => {
+    ...Object.keys(dummyBlockedDates).reduce((acc, date) => {
       acc[date] = {
         disabled: true,
         disableTouchEvent: true,
@@ -54,21 +70,35 @@ const BookingScreen = ({ route, navigation }) => {
     ...(selectedDate ? { [selectedDate]: { selected: true, selectedColor: '#0d9488' } } : {}),
   };
 
-  const handleBooking = () => {
+  const handleBooking = async () => {
     if (!selectedDate || !selectedSlot) {
       Alert.alert('Almost there', 'Choose a date and a time slot to continue.');
       return;
     }
 
     setIsProcessing(true);
-    setTimeout(() => {
+    try {
+      // 1. Simulate Payment Delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // 2. Actually Save Appointment to Database
+      await api.createAppointment({
+        dentist_id: dentist.user_id || dentist.id,
+        appointment_date: selectedDate,
+        start_time: selectedSlot,
+        treatment_type: 'General Consultation'
+      });
+
       setIsProcessing(false);
       setIsSuccess(true);
       setTimeout(() => {
         setIsSuccess(false);
         navigation.navigate('PatientTabs', { screen: 'Explore' });
       }, 2200);
-    }, 2200);
+    } catch (error) {
+      setIsProcessing(false);
+      Alert.alert('Booking Error', 'We could not save your appointment. Please try again.');
+    }
   };
 
   const goExplore = () => {
@@ -138,7 +168,7 @@ const BookingScreen = ({ route, navigation }) => {
             <Text className="text-ink font-bold text-[16px] mb-2 px-3">Select date</Text>
             <Calendar
               onDayPress={(day) => {
-                if (!blockedDates[day.dateString]) {
+                if (!dummyBlockedDates[day.dateString]) {
                   setSelectedDate(day.dateString);
                   setSelectedSlot(null);
                 }
@@ -173,7 +203,7 @@ const BookingScreen = ({ route, navigation }) => {
               Tap a slot. You can change it before confirming.
             </Text>
             <View className="flex-row flex-wrap justify-between">
-              {dentist.availableSlots.map((slot) => {
+              {availableSlots.map((slot) => {
                 const active = selectedSlot === slot;
                 return (
                   <View key={slot} className="w-[48%] mb-3">

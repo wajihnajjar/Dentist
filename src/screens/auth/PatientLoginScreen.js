@@ -1,17 +1,39 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Mail, Lock, ChevronLeft, ArrowRight } from 'lucide-react-native';
+import * as SecureStore from 'expo-secure-store';
+import { api } from '../../api/client';
 
 const PatientLoginScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
-    // Simulated auth
-    navigation.replace('PatientTabs');
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter both email and password');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const data = await api.login({ email, password });
+
+      if (data.token) {
+        await SecureStore.setItemAsync('userToken', data.token);
+        navigation.replace('PatientTabs');
+      } else {
+        Alert.alert('Login Failed', data.error || 'Invalid credentials');
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Connection Error', 'Could not connect to the server. Please check your network.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -91,11 +113,18 @@ const PatientLoginScreen = ({ navigation }) => {
 
           <TouchableOpacity
             onPress={handleLogin}
+            disabled={isLoading}
             className="flex-row items-center justify-center bg-slate-950 h-16 rounded-[24px] shadow-lg shadow-slate-900/20 active:opacity-90 mb-6"
             activeOpacity={0.88}
           >
-            <Text className="text-white text-[17px] font-bold tracking-wide mr-2">Sign In</Text>
-            <ArrowRight size={20} color="#ffffff" />
+            {isLoading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <>
+                <Text className="text-white text-[17px] font-bold tracking-wide mr-2">Sign In</Text>
+                <ArrowRight size={20} color="#ffffff" />
+              </>
+            )}
           </TouchableOpacity>
 
           <View className="flex-row justify-center mt-auto pb-4">

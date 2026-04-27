@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Calendar } from 'react-native-calendars';
-import { mockAppointments, dummyUser, dentists } from '../../data/mockData';
+import { api } from '../../api/client';
+import { dummyUser, dentists } from '../../data/mockData';
 import { Clock, Calendar as CalendarIcon, User, Settings, CalendarHeart, ChevronRight } from 'lucide-react-native';
 
 const formatLong = (iso) => {
@@ -22,33 +23,43 @@ const CalendarScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const todayIso = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(todayIso);
-  const [blockedDates, setBlockedDates] = useState({
-    '2026-04-20': { blocked: true, color: '#fee2e2' },
-    '2026-04-25': { blocked: true, color: '#fee2e2' },
-  });
+  const [appointments, setAppointments] = useState([]);
+  const [blockedDates, setBlockedDates] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
 
   const isPatientBookings = route.name === 'Bookings';
 
-  const appointmentsForDate = useMemo(() => {
-    return mockAppointments.filter((app) => {
-      if (app.date !== selectedDate) return false;
-      if (isPatientBookings) {
-        return app.patientName === dummyUser.name;
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const role = isPatientBookings ? 'PATIENT' : 'DENTIST';
+        const data = await api.getAppointments(role, selectedDate);
+        setAppointments(data);
+      } catch (error) {
+        console.error('Failed to load appointments:', error);
+      } finally {
+        setIsLoading(false);
       }
-      return app.dentistId === 'd1';
-    });
+    };
+    loadData();
   }, [selectedDate, isPatientBookings]);
 
-  const toggleVacation = () => {
+  const toggleVacation = async () => {
     if (isPatientBookings) return;
-    const isCurrentlyBlocked = blockedDates[selectedDate];
-    const next = { ...blockedDates };
-    if (isCurrentlyBlocked) {
-      delete next[selectedDate];
-    } else {
-      next[selectedDate] = { blocked: true, color: '#fee2e2' };
+    const isCurrentlyBlocked = !!blockedDates[selectedDate];
+    try {
+      await api.toggleBlockedDate(selectedDate, isCurrentlyBlocked);
+      const next = { ...blockedDates };
+      if (isCurrentlyBlocked) {
+        delete next[selectedDate];
+      } else {
+        next[selectedDate] = { blocked: true, color: '#fee2e2' };
+      }
+      setBlockedDates(next);
+    } catch (error) {
+      console.error('Failed to toggle vacation:', error);
     }
-    setBlockedDates(next);
   };
 
   const markedDates = {
@@ -177,12 +188,12 @@ const CalendarScreen = ({ navigation, route }) => {
           <View className="flex-row justify-between items-center mb-4 px-1">
             <Text className="text-[22px] font-bold text-ink tracking-tight">Appointments</Text>
             <View className="bg-slate-900 px-3.5 py-1.5 rounded-full">
-              <Text className="text-white font-bold text-[12px]">{appointmentsForDate.length}</Text>
+              <Text className="text-white font-bold text-[12px]">{appointments.length}</Text>
             </View>
           </View>
 
-          {appointmentsForDate.length > 0 ? (
-            appointmentsForDate.map((app) => (
+          {appointments.length > 0 ? (
+            appointments.map((app) => (
               <TouchableOpacity
                 key={app.id}
                 activeOpacity={0.88}

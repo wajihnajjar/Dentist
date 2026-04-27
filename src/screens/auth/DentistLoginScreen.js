@@ -1,17 +1,38 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Mail, Lock, ChevronLeft, ArrowRight, Stethoscope } from 'lucide-react-native';
+import * as SecureStore from 'expo-secure-store';
+import { api } from '../../api/client';
 
 const DentistLoginScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
-    // Simulated auth
-    navigation.replace('DentistTabs');
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter both email and password');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const data = await api.login({ email, password });
+
+      if (data.token) {
+        await SecureStore.setItemAsync('userToken', data.token);
+        navigation.replace('DentistTabs');
+      } else {
+        Alert.alert('Login Failed', data.error || 'Invalid credentials');
+      }
+    } catch (error) {
+      Alert.alert('Connection Error', 'Could not connect to the server.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -97,11 +118,18 @@ const DentistLoginScreen = ({ navigation }) => {
 
           <TouchableOpacity
             onPress={handleLogin}
+            disabled={isLoading}
             className="flex-row items-center justify-center bg-slate-950 h-16 rounded-[24px] shadow-lg shadow-slate-900/20 active:opacity-90 mb-6"
             activeOpacity={0.88}
           >
-            <Text className="text-white text-[17px] font-bold tracking-wide mr-2">Sign In to Dashboard</Text>
-            <ArrowRight size={20} color="#ffffff" />
+            {isLoading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <>
+                <Text className="text-white text-[17px] font-bold tracking-wide mr-2">Sign In to Dashboard</Text>
+                <ArrowRight size={20} color="#ffffff" />
+              </>
+            )}
           </TouchableOpacity>
 
           <View className="flex-row justify-center mt-auto pb-4">

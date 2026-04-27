@@ -1,18 +1,48 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
-import { Mail, Lock, ChevronLeft, ArrowRight, User } from 'lucide-react-native';
+import { Mail, Lock, ChevronLeft, ArrowRight, User, Phone, Calendar } from 'lucide-react-native';
+import * as SecureStore from 'expo-secure-store';
+import { api } from '../../api/client';
 
 const PatientRegisterScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [dob, setDob] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleRegister = () => {
-    // Simulated auth
-    navigation.replace('PatientTabs');
+  const handleRegister = async () => {
+    if (!name || !email || !password) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const data = await api.register({
+        name,
+        email,
+        phone,
+        dob,
+        password,
+        role: 'PATIENT',
+      });
+
+      if (data.token) {
+        await SecureStore.setItemAsync('userToken', data.token);
+        navigation.replace('PatientTabs');
+      } else {
+        Alert.alert('Registration Failed', data.error || 'Something went wrong');
+      }
+    } catch (error) {
+      Alert.alert('Connection Error', 'Could not connect to the server.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -87,6 +117,39 @@ const PatientRegisterScreen = ({ navigation }) => {
             </View>
           </View>
 
+          <View className="mb-5">
+            <Text className="text-slate-500 text-[13px] font-bold uppercase tracking-wider mb-2 ml-1">
+              Phone Number
+            </Text>
+            <View className="flex-row items-center bg-white h-16 rounded-[24px] px-5 border border-slate-200 shadow-sm shadow-slate-900/5">
+              <Phone size={20} color="#94a3b8" />
+              <TextInput
+                className="flex-1 ml-3 text-[16px] text-ink font-medium"
+                placeholder="+1 (555) 000-0000"
+                placeholderTextColor="#94a3b8"
+                keyboardType="phone-pad"
+                value={phone}
+                onChangeText={setPhone}
+              />
+            </View>
+          </View>
+
+          <View className="mb-5">
+            <Text className="text-slate-500 text-[13px] font-bold uppercase tracking-wider mb-2 ml-1">
+              Date of Birth
+            </Text>
+            <View className="flex-row items-center bg-white h-16 rounded-[24px] px-5 border border-slate-200 shadow-sm shadow-slate-900/5">
+              <Calendar size={20} color="#94a3b8" />
+              <TextInput
+                className="flex-1 ml-3 text-[16px] text-ink font-medium"
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor="#94a3b8"
+                value={dob}
+                onChangeText={setDob}
+              />
+            </View>
+          </View>
+
           <View className="mb-8">
             <Text className="text-slate-500 text-[13px] font-bold uppercase tracking-wider mb-2 ml-1">
               Password
@@ -106,11 +169,18 @@ const PatientRegisterScreen = ({ navigation }) => {
 
           <TouchableOpacity
             onPress={handleRegister}
+            disabled={isLoading}
             className="flex-row items-center justify-center bg-brand-600 h-16 rounded-[24px] shadow-lg shadow-brand-900/25 border border-brand-500/30 active:opacity-90 mb-6"
             activeOpacity={0.88}
           >
-            <Text className="text-white text-[17px] font-bold tracking-wide mr-2">Create Account</Text>
-            <ArrowRight size={20} color="#ffffff" />
+            {isLoading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <>
+                <Text className="text-white text-[17px] font-bold tracking-wide mr-2">Create Account</Text>
+                <ArrowRight size={20} color="#ffffff" />
+              </>
+            )}
           </TouchableOpacity>
 
           <View className="flex-row justify-center mt-auto pb-4">

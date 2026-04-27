@@ -4,6 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, SlideInDown } from 'react-native-reanimated';
 import { ChevronLeft, Star, MapPin, Phone, GraduationCap, CalendarClock } from 'lucide-react-native';
 
+const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=800';
+
 const PatientDentistDetailScreen = ({ route, navigation }) => {
   const { dentist } = route.params;
   const insets = useSafeAreaInsets();
@@ -17,7 +19,7 @@ const PatientDentistDetailScreen = ({ route, navigation }) => {
       >
         <View className="relative h-80 w-full bg-slate-200">
           <Image 
-            source={{ uri: dentist.image }} 
+            source={{ uri: dentist.image || DEFAULT_IMAGE }} 
             className="absolute w-full h-full"
             resizeMode="cover"
           />
@@ -26,11 +28,7 @@ const PatientDentistDetailScreen = ({ route, navigation }) => {
           
           <View className="absolute bottom-6 left-6 right-6">
             <View className="flex-row items-center mb-2">
-              <View className="bg-brand-500/20 px-3 py-1.5 rounded-full border border-brand-400/30 flex-row items-center">
-                <Star size={14} color="#fbbf24" fill="#fbbf24" />
-                <Text className="text-white font-bold text-xs ml-1.5">{dentist.rating} Rating</Text>
-              </View>
-              <View className="bg-white/20 px-3 py-1.5 rounded-full border border-white/20 ml-2">
+              <View className="bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/20">
                 <Text className="text-white font-bold text-xs">Accepting New Patients</Text>
               </View>
             </View>

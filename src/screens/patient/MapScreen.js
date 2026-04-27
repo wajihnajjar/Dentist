@@ -14,7 +14,8 @@ import {
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import { dentists } from '../../data/mockData';
+import * as Location from 'expo-location';
+import { api } from '../../api/client';
 import { Star, Search, SlidersHorizontal, MapPin } from 'lucide-react-native';
 import SkeletonLoader from '../../components/SkeletonLoader';
 
@@ -24,6 +25,23 @@ const { width } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.82;
 const SPACING_FOR_CARD_INSET = width * 0.09;
 
+const DEFAULT_DOCTOR_IMAGE = 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=400';
+
+// Helper function to calculate distance using Haversine formula
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  const R = 6371; // Radius of the earth in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const d = R * c; // Distance in km
+  return d;
+};
+
 const MapScreen = ({ navigation }) => {
   const mapRef = useRef(null);
   const flatListRef = useRef(null);
@@ -31,17 +49,80 @@ const MapScreen = ({ navigation }) => {
   const tabBarHeight = useBottomTabBarHeight();
 
   const [isLoading, setIsLoading] = useState(true);
+  const [dentists, setDentists] = useState([]);
   const [query, setQuery] = useState('');
-  const [selectedDentist, setSelectedDentist] = useState(dentists[0] || null);
-  const [isBestRatedFilter, setIsBestRatedFilter] = useState(false);
+  const [selectedDentist, setSelectedDentist] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1400);
-    return () => clearTimeout(timer);
+    const loadData = async () => {
+      try {
+        // 1. Get User Location
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        let userCoords = null;
+        if (status === 'granted') {
+          let location = await Location.getCurrentPositionAsync({});
+          userCoords = {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          };
+          setUserLocation(userCoords);
+          mapRef.current?.animateToRegion({
+            latitude: userCoords.latitude,
+            longitude: userCoords.longitude,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          }, 1000);
+        }
+
+        // 2. Fetch and Transform Dentist Data
+        const rawData = await api.getDentists();
+        
+        // Ensure rawData is an array
+        const dentistsArray = Array.isArray(rawData) ? rawData : (rawData?.dentists || []);
+        
+        // Transform DB fields to Frontend fields
+        const transformedData = dentistsArray.map(d => {
+          const lat = parseFloat(d.latitude) || 0;
+          const lng = parseFloat(d.longitude) || 0;
+          let dist = null;
+          
+          if (userCoords && lat !== 0) {
+            dist = calculateDistance(userCoords.latitude, userCoords.longitude, lat, lng);
+          }
+
+          return {
+            ...d,
+            id: d.user_id || d.id,
+            name: d.full_name || d.name,
+            image: d.image_url || d.image || DEFAULT_DOCTOR_IMAGE,
+            specialty: d.specialty || 'General Dentist',
+            distance: dist,
+            coordinate: {
+              latitude: lat,
+              longitude: lng
+            }
+          };
+        }).filter(d => d.coordinate.latitude !== 0); // Filter out items with no location
+
+        // Sort by distance if available
+        if (userCoords) {
+          transformedData.sort((a, b) => (a.distance || 9999) - (b.distance || 9999));
+        }
+
+        setDentists(transformedData);
+        if (transformedData.length > 0) setSelectedDentist(transformedData[0]);
+      } catch (error) {
+        console.error('Failed to fetch dentists:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
   }, []);
 
   const visibleDentists = useMemo(() => {
-    let list = isBestRatedFilter ? [...dentists].sort((a, b) => b.rating - a.rating) : dentists;
+    let list = dentists;
     const q = query.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -51,7 +132,7 @@ const MapScreen = ({ navigation }) => {
       );
     }
     return list;
-  }, [isBestRatedFilter, query]);
+  }, [query, dentists]);
 
   useEffect(() => {
     if (!visibleDentists.length) {
@@ -124,6 +205,8 @@ const MapScreen = ({ navigation }) => {
         ref={mapRef}
         style={styles.map}
         provider={PROVIDER_GOOGLE}
+        showsUserLocation={true}
+        followsUserLocation={false}
         initialRegion={{
           latitude: 37.78825,
           longitude: -122.4324,
@@ -156,14 +239,6 @@ const MapScreen = ({ navigation }) => {
             onSubmitEditing={Keyboard.dismiss}
           />
         </View>
-        <TouchableOpacity
-          onPress={toggleBestRated}
-          style={[styles.filterButton, isBestRatedFilter ? styles.filterButtonActive : null]}
-          activeOpacity={0.88}
-        >
-          <SlidersHorizontal size={17} color={isBestRatedFilter ? 'white' : '#0d9488'} />
-          <Text style={[styles.filterLabel, isBestRatedFilter ? styles.filterLabelActive : null]}>Top rated</Text>
-        </TouchableOpacity>
       </View>
 
       {visibleDentists.length === 0 ? (
@@ -174,12 +249,11 @@ const MapScreen = ({ navigation }) => {
             </View>
             <Text className="text-ink font-bold text-xl mt-2 tracking-tight">No matches</Text>
             <Text className="text-slate-500 text-center mt-2 text-[15px] leading-6 px-2">
-              Try another search or clear filters to see all providers.
+              Try another search to see providers.
             </Text>
             <TouchableOpacity
               onPress={() => {
                 setQuery('');
-                setIsBestRatedFilter(false);
               }}
               className="mt-5 bg-slate-950 px-8 py-3.5 rounded-full border border-slate-800 active:opacity-92"
             >
@@ -228,10 +302,10 @@ const MapScreen = ({ navigation }) => {
                     {item.specialty}
                   </Text>
                   <View className="flex-row items-center mt-2">
-                    <Star size={15} color="#f59e0b" fill="#fbbf24" />
-                    <Text className="text-slate-700 font-bold ml-1 text-[14px]">{item.rating}</Text>
-                    <Text className="text-slate-300 mx-2">·</Text>
-                    <Text className="text-slate-500 text-xs">~12 min</Text>
+                    <MapPin size={15} color="#64748b" />
+                    <Text className="text-slate-500 text-xs ml-1">
+                      {item.distance ? `${item.distance.toFixed(1)} km away` : 'Location unknown'}
+                    </Text>
                   </View>
                   <View style={styles.cta}>
                     <Text className="text-white text-center font-bold text-[15px] tracking-wide">View Profile</Text>
