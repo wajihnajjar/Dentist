@@ -1,14 +1,32 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommonActions } from '@react-navigation/native';
-import { dummyUser } from '../../data/mockData';
+import * as SecureStore from 'expo-secure-store';
+import { api } from '../../api/client';
 import { Mail, Phone, ChevronRight, LogOut, CalendarClock, Bell, Shield } from 'lucide-react-native';
 
 const PatientProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const [userProfile, setUserProfile] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const signOut = () => {
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const data = await api.getMe();
+        setUserProfile(data);
+      } catch (error) {
+        console.error('Failed to load profile:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadProfile();
+  }, []);
+
+  const signOut = async () => {
+    await SecureStore.deleteItemAsync('userToken');
     const stack = navigation.getParent()?.getParent?.() ?? navigation.getParent();
     stack?.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'Login' }] }));
   };
@@ -47,32 +65,38 @@ const PatientProfileScreen = ({ navigation }) => {
         contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
         showsVerticalScrollIndicator={false}
       >
-        <View className="bg-white rounded-[32px] p-6 border border-slate-200/80 shadow-xl shadow-slate-900/8 items-center">
-          <View className="w-[88px] h-[88px] rounded-full bg-brand-600 items-center justify-center border-4 border-white shadow-lg shadow-brand-900/25">
-            <Text className="text-white text-[32px] font-bold">
-              {dummyUser.name
-                .split(' ')
-                .map((n) => n[0])
-                .join('')
-                .slice(0, 2)}
-            </Text>
+        {isLoading ? (
+          <View className="bg-white rounded-[32px] p-10 border border-slate-200/80 shadow-xl shadow-slate-900/8 items-center justify-center">
+            <ActivityIndicator size="large" color="#0d9488" />
           </View>
-          <Text className="text-xl font-bold text-ink mt-4">{dummyUser.name}</Text>
-          <View className="bg-slate-100 px-4 py-1.5 rounded-full mt-2 border border-slate-200/80">
-            <Text className="text-slate-600 text-[12px] font-bold uppercase tracking-wider">Patient</Text>
-          </View>
-        </View>
+        ) : (
+          <>
+            <View className="bg-white rounded-[32px] p-6 border border-slate-200/80 shadow-xl shadow-slate-900/8 items-center">
+              <View className="w-[88px] h-[88px] rounded-full bg-brand-600 items-center justify-center border-4 border-white shadow-lg shadow-brand-900/25">
+                <Text className="text-white text-[32px] font-bold">
+                  {userProfile?.profile?.full_name
+                    ? userProfile.profile.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+                    : 'U'}
+                </Text>
+              </View>
+              <Text className="text-xl font-bold text-ink mt-4">{userProfile?.profile?.full_name || 'User'}</Text>
+              <View className="bg-slate-100 px-4 py-1.5 rounded-full mt-2 border border-slate-200/80">
+                <Text className="text-slate-600 text-[12px] font-bold uppercase tracking-wider">{userProfile?.role || 'Patient'}</Text>
+              </View>
+            </View>
 
-        <View className="bg-white rounded-[28px] px-5 mt-5 border border-slate-200/80 shadow-sm">
-          <View className="flex-row items-center py-4 border-b border-slate-100">
-            <Mail size={18} color="#64748b" />
-            <Text className="text-slate-700 ml-3 flex-1 text-[15px]">{dummyUser.email}</Text>
-          </View>
-          <View className="flex-row items-center py-4">
-            <Phone size={18} color="#64748b" />
-            <Text className="text-slate-700 ml-3 flex-1 text-[15px]">{dummyUser.phone}</Text>
-          </View>
-        </View>
+            <View className="bg-white rounded-[28px] px-5 mt-5 border border-slate-200/80 shadow-sm">
+              <View className="flex-row items-center py-4 border-b border-slate-100">
+                <Mail size={18} color="#64748b" />
+                <Text className="text-slate-700 ml-3 flex-1 text-[15px]">{userProfile?.email || 'No email'}</Text>
+              </View>
+              <View className="flex-row items-center py-4">
+                <Phone size={18} color="#64748b" />
+                <Text className="text-slate-700 ml-3 flex-1 text-[15px]">{userProfile?.profile?.phone || 'No phone provided'}</Text>
+              </View>
+            </View>
+          </>
+        )}
 
         <Text className="text-slate-500 text-[12px] font-bold uppercase tracking-wider mt-8 mb-2 px-2">Care</Text>
         <View className="bg-white rounded-[28px] px-5 border border-slate-200/80 shadow-sm overflow-hidden">
@@ -81,13 +105,7 @@ const PatientProfileScreen = ({ navigation }) => {
             label="Visit history"
             onPress={() => navigation.navigate('PatientVisitHistory')}
           />
-          <Row icon={Bell} label="Notifications" onPress={() => navigation.navigate('PatientSettings')} />
-          <Row
-            icon={Shield}
-            label="Privacy & data"
-            last
-            onPress={() => navigation.navigate('PatientSettings')}
-          />
+    
         </View>
 
         <TouchableOpacity

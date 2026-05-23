@@ -4,9 +4,6 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  Modal,
-  ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -14,7 +11,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Calendar } from 'react-native-calendars';
 import { api } from '../../api/client';
 import { blockedDates as dummyBlockedDates } from '../../data/mockData';
-import { CheckCircle, CreditCard, ChevronLeft, CalendarDays, Clock } from 'lucide-react-native';
+import { CreditCard, ChevronLeft, CalendarDays, Clock } from 'lucide-react-native';
+import AppAlertModal from '../../components/AppAlertModal';
 
 const StepDot = ({ n, active, done }) => (
   <View className="flex-row items-center">
@@ -32,28 +30,137 @@ const StepDot = ({ n, active, done }) => (
   </View>
 );
 
+const todayIsoLocal = () => {
+  const now = new Date();
+  const tzOffsetMs = now.getTimezoneOffset() * 60 * 1000;
+  return new Date(now.getTime() - tzOffsetMs).toISOString().split('T')[0];
+};
+
+const toMinutes = (timeValue) => {
+  const [h, m] = String(timeValue || '').split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return h * 60 + m;
+};
+
+const minutesToHHmm = (value) => {
+  const hours = String(Math.floor(value / 60)).padStart(2, '0');
+  const minutes = String(value % 60).padStart(2, '0');
+  return `${hours}:${minutes}`;
+};
+
+const normalizeSlotsResponse = (payload) => {
+  const source = Array.isArray(payload)
+    ? payload
+    : payload?.slots || payload?.available_slots || payload?.data || [];
+
+  if (!Array.isArray(source)) return [];
+
+  const normalized = source
+    .map((slot) => {
+      if (typeof slot === 'string') return slot.substring(0, 5);
+      if (slot?.start_time) return String(slot.start_time).substring(0, 5);
+      if (slot?.slot) return String(slot.slot).substring(0, 5);
+      if (slot?.time) return String(slot.time).substring(0, 5);
+      return null;
+    })
+    .filter(Boolean);
+
+  return Array.from(new Set(normalized));
+};
+
+const extractScheduleArray = (dentist) => {
+  if (Array.isArray(dentist?.schedule)) return dentist.schedule;
+  if (Array.isArray(dentist?.schedules)) return dentist.schedules;
+  if (Array.isArray(dentist?.profile?.schedule)) return dentist.profile.schedule;
+  if (Array.isArray(dentist?.profile?.schedules)) return dentist.profile.schedules;
+  return [];
+};
+
+const buildFallbackSlotsFromSchedule = (dentist, dateIso) => {
+  const schedules = extractScheduleArray(dentist);
+  if (!schedules.length) return [];
+
+  const selectedDate = new Date(`${dateIso}T12:00:00`);
+  const jsDay = selectedDate.getDay(); // 0-6 (Sun-Sat)
+  const isoLikeDay = jsDay === 0 ? 7 : jsDay; // 1-7 (Mon-Sun)
+  const dayLabels = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const selectedDayLabel = dayLabels[jsDay];
+
+  const daySchedule = schedules.find((entry) => {
+    const numeric = Number(entry.day_of_week);
+    if (!Number.isNaN(numeric) && (numeric === jsDay || numeric === isoLikeDay)) {
+      return true;
+    }
+
+    const textual = String(entry.day || entry.day_name || '').trim().toLowerCase();
+    return textual.startsWith(selectedDayLabel);
+  });
+  if (!daySchedule) return [];
+
+  const startMinutes = toMinutes(daySchedule.start_time || daySchedule.open_time || daySchedule.from);
+  const endMinutes = toMinutes(daySchedule.end_time || daySchedule.close_time || daySchedule.to);
+  if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) return [];
+
+  const now = new Date();
+  const isToday = dateIso === todayIsoLocal();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const minBookable = isToday ? nowMinutes + 5 : startMinutes;
+
+  const slots = [];
+  for (let minute = startMinutes; minute + 30 <= endMinutes; minute += 30) {
+    if (minute >= minBookable) {
+      slots.push(minutesToHHmm(minute));
+    }
+  }
+  return slots;
+};
+
 const BookingScreen = ({ route, navigation }) => {
   const { dentist } = route.params;
   const insets = useSafeAreaInsets();
-  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedDate, setSelectedDate] = useState(todayIsoLocal());
   const [availableSlots, setAvailableSlots] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [alertState, setAlertState] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    tone: 'info',
+  });
+
+  const showAlert = (title, message, tone = 'info') => {
+    setAlertState({ visible: true, title, message, tone });
+  };
 
   useEffect(() => {
     if (selectedDate) {
       const fetchSlots = async () => {
+        setIsLoadingSlots(true);
         try {
-          const slots = await api.getSlots(dentist.user_id || dentist.id, selectedDate);
-          setAvailableSlots(slots);
+          const payload = await api.getSlots(dentist.user_id || dentist.id, selectedDate);
+          const normalizedSlots = normalizeSlotsResponse(payload);
+          const fallbackSlots =
+            normalizedSlots.length === 0
+              ? buildFallbackSlotsFromSchedule(dentist, selectedDate)
+              : [];
+          const finalSlots = normalizedSlots.length > 0 ? normalizedSlots : fallbackSlots;
+          if (!selectedSlot || !finalSlots.includes(selectedSlot)) {
+            setSelectedSlot(null);
+          }
+          setAvailableSlots(finalSlots);
         } catch (error) {
           console.error('Failed to fetch slots:', error);
+          const fallbackSlots = buildFallbackSlotsFromSchedule(dentist, selectedDate);
+          setAvailableSlots(fallbackSlots);
+        } finally {
+          setIsLoadingSlots(false);
         }
       };
+
       fetchSlots();
     }
-  }, [selectedDate]);
+  }, [selectedDate, dentist.user_id, dentist.id]);
 
   const markedDates = {
     ...Object.keys(dummyBlockedDates).reduce((acc, date) => {
@@ -72,37 +179,35 @@ const BookingScreen = ({ route, navigation }) => {
 
   const handleBooking = async () => {
     if (!selectedDate || !selectedSlot) {
-      Alert.alert('Almost there', 'Choose a date and a time slot to continue.');
+      showAlert('Almost there', 'Choose a date and a time slot to continue.');
       return;
     }
 
-    setIsProcessing(true);
     try {
-      // 1. Simulate Payment Delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // 2. Actually Save Appointment to Database
-      await api.createAppointment({
+      const appointmentResult = await api.createAppointment({
         dentist_id: dentist.user_id || dentist.id,
         appointment_date: selectedDate,
         start_time: selectedSlot,
         treatment_type: 'General Consultation'
       });
 
-      setIsProcessing(false);
-      setIsSuccess(true);
-      setTimeout(() => {
-        setIsSuccess(false);
-        navigation.navigate('PatientTabs', { screen: 'Explore' });
-      }, 2200);
-    } catch (error) {
-      setIsProcessing(false);
-      Alert.alert('Booking Error', 'We could not save your appointment. Please try again.');
-    }
-  };
+      if (appointmentResult?.error) {
+        showAlert('Booking Error', appointmentResult.error, 'danger');
+        return;
+      }
 
-  const goExplore = () => {
-    navigation.navigate('PatientTabs', { screen: 'Explore' });
+
+      navigation.navigate('PatientCheckout', {
+        mode: 'appointment',
+        appointmentPayment: {
+          appointmentId: appointmentResult?.id || appointmentResult?.appointment_id,
+          title: `Appointment with ${dentist.name}`,
+          amount: Number(dentist.consultation_fee) || 50
+        }
+      });
+    } catch (error) {
+      showAlert('Booking Error', 'We could not save your appointment. Please try again.', 'danger');
+    }
   };
 
   const step1 = !!selectedDate;
@@ -173,6 +278,7 @@ const BookingScreen = ({ route, navigation }) => {
                   setSelectedSlot(null);
                 }
               }}
+              minDate={todayIsoLocal()}
               markedDates={markedDates}
               theme={{
                 backgroundColor: '#ffffff',
@@ -202,26 +308,38 @@ const BookingScreen = ({ route, navigation }) => {
             <Text className="text-slate-500 text-sm mt-2 mb-5 leading-5">
               Tap a slot. You can change it before confirming.
             </Text>
-            <View className="flex-row flex-wrap justify-between">
-              {availableSlots.map((slot) => {
-                const active = selectedSlot === slot;
-                return (
-                  <View key={slot} className="w-[48%] mb-3">
-                    <TouchableOpacity
-                      onPress={() => setSelectedSlot(slot)}
-                      className={`py-4 items-center rounded-2xl border ${
-                        active
-                          ? 'bg-brand-600 border-brand-500 shadow-md shadow-brand-900/20'
-                          : 'bg-white border-slate-200/90 shadow-sm'
-                      }`}
-                      activeOpacity={0.88}
-                    >
-                      <Text className={`font-bold text-[17px] ${active ? 'text-white' : 'text-ink'}`}>{slot}</Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
-            </View>
+            {isLoadingSlots ? (
+              <View className="bg-white border border-slate-200 rounded-2xl p-4">
+                <Text className="text-slate-500 text-center">Loading available slots...</Text>
+              </View>
+            ) : availableSlots.length > 0 ? (
+              <View className="flex-row flex-wrap justify-between">
+                {availableSlots.map((slot) => {
+                  const active = selectedSlot === slot;
+                  return (
+                    <View key={slot} className="w-[48%] mb-3">
+                      <TouchableOpacity
+                        onPress={() => setSelectedSlot(slot)}
+                        className={`py-4 items-center rounded-2xl border ${
+                          active
+                            ? 'bg-brand-600 border-brand-500 shadow-md shadow-brand-900/20'
+                            : 'bg-white border-slate-200/90 shadow-sm'
+                        }`}
+                        activeOpacity={0.88}
+                      >
+                        <Text className={`font-bold text-[17px] ${active ? 'text-white' : 'text-ink'}`}>{slot}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <View className="bg-white border border-slate-200 rounded-2xl p-4">
+                <Text className="text-slate-500 text-center">
+                  No slots available for this date. Try another day.
+                </Text>
+              </View>
+            )}
           </View>
         ) : null}
       </ScrollView>
@@ -242,42 +360,18 @@ const BookingScreen = ({ route, navigation }) => {
             </Text>
           </TouchableOpacity>
           <Text className="text-slate-400 text-[11px] text-center mt-3 leading-5 px-2">
-            Demo only — no charge. You will return to the map when finished.
+            Continue to checkout to complete payment.
           </Text>
         </View>
       ) : null}
 
-      <Modal visible={isProcessing} transparent animationType="fade">
-        <View className="flex-1 bg-slate-950/60 items-center justify-center px-8">
-          <View className="bg-white p-8 rounded-[32px] items-center w-full max-w-sm border border-slate-100 shadow-2xl">
-            <ActivityIndicator size="large" color="#0d9488" />
-            <Text className="text-xl font-bold text-ink mt-6 text-center">Processing…</Text>
-            <Text className="text-slate-500 mt-2 text-center text-[15px] leading-6">
-              Confirming your demo payment.
-            </Text>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={isSuccess} transparent animationType="fade">
-        <View className="flex-1 bg-slate-950/60 items-center justify-center px-8">
-          <View className="bg-white p-8 rounded-[32px] items-center w-full max-w-sm border border-slate-100 shadow-2xl">
-            <View className="bg-emerald-50 p-5 rounded-full border border-emerald-100">
-              <CheckCircle size={52} color="#059669" />
-            </View>
-            <Text className="text-2xl font-bold text-ink mt-6 text-center tracking-tight">You&apos;re booked</Text>
-            <Text className="text-slate-500 mt-2 text-center text-[15px] leading-6">
-              {dentist.name} · {selectedSlot}
-            </Text>
-            <TouchableOpacity
-              onPress={goExplore}
-              className="mt-7 px-8 py-3.5 rounded-2xl bg-slate-950 border border-slate-800 active:opacity-92"
-            >
-              <Text className="text-white font-bold">Back to map</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <AppAlertModal
+        visible={alertState.visible}
+        title={alertState.title}
+        message={alertState.message}
+        tone={alertState.tone}
+        onConfirm={() => setAlertState((prev) => ({ ...prev, visible: false }))}
+      />
     </KeyboardAvoidingView>
   );
 };

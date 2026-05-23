@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { mockAppointments, dentistUser } from '../../data/mockData';
+import { useFocusEffect } from '@react-navigation/native';
+import { api } from '../../api/client';
 import {
   Calendar,
   Users,
@@ -25,21 +26,65 @@ const StatCard = ({ icon: Icon, iconBg, iconColor, value, label }) => (
 
 const DentistDashboardScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const [profile, setProfile] = useState(null);
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const stats = useMemo(() => {
-    const mine = mockAppointments.filter((a) => a.dentistId === dentistUser.id);
-    const today = mine.filter((a) => a.date === todayIso);
-    const pending = mine.filter((a) => a.status === 'Pending').length;
+  const loadData = async () => {
+    try {
+      const [meRes, appRes] = await Promise.all([
+        api.getMe(),
+        api.getAppointments('DENTIST') // passing no date to get all
+      ]);
+      setProfile(meRes.profile);
+      setAppointments(Array.isArray(appRes) ? appRes : []);
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
+
+  const stats = React.useMemo(() => {
+    const today = appointments.filter((a) => {
+      const dbDate = a.appointment_date ? a.appointment_date.split('T')[0] : '';
+      return dbDate === todayIso;
+    });
+    const pending = appointments.filter((a) => a.status === 'PENDING').length;
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - 7);
-    const recent = mine.filter((a) => new Date(a.date + 'T12:00:00') >= weekStart).length;
+    const recent = appointments.filter((a) => {
+      const d = new Date(a.appointment_date);
+      return d >= weekStart;
+    }).length;
     return {
       todayCount: today.length,
       pending,
       weekCount: recent,
-      todaySlots: today.sort((a, b) => a.time.localeCompare(b.time)),
+      todaySlots: today.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || '')),
     };
-  }, []);
+  }, [appointments]);
+
+  if (loading && !refreshing) {
+    return (
+      <View className="flex-1 bg-canvas items-center justify-center">
+        <ActivityIndicator size="large" color="#0d9488" />
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-canvas">
@@ -50,7 +95,7 @@ const DentistDashboardScreen = ({ navigation }) => {
         <View className="absolute bottom-6 right-5 w-40 h-40 rounded-full bg-brand-500/10" />
         <Text className="text-brand-300/90 text-[11px] font-bold uppercase tracking-[2px]">Dashboard</Text>
         <Text className="text-white text-[26px] font-bold mt-2 tracking-tight leading-tight" numberOfLines={2}>
-          {dentistUser.practiceName}
+          {profile?.practice_name || profile?.full_name || 'My Clinic'}
         </Text>
         <Text className="text-slate-400 text-[14px] mt-3 leading-5">
           Today&apos;s chair time and quick actions.
@@ -61,6 +106,7 @@ const DentistDashboardScreen = ({ navigation }) => {
         className="flex-1 px-5 -mt-5"
         contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0d9488" />}
       >
         <View className="flex-row flex-wrap justify-between">
           <StatCard
@@ -120,14 +166,14 @@ const DentistDashboardScreen = ({ navigation }) => {
               className="bg-white rounded-[24px] p-4 mb-3 border border-slate-200/70 flex-row items-center shadow-sm shadow-slate-900/4 active:opacity-92"
             >
               <View className="bg-slate-950 px-3.5 py-2.5 rounded-2xl mr-3">
-                <Text className="text-white font-bold text-[14px]">{app.time}</Text>
+                <Text className="text-white font-bold text-[14px]">{(app.start_time || '').substring(0, 5)}</Text>
               </View>
               <View className="flex-1 min-w-0">
                 <Text className="text-ink font-bold text-[16px]" numberOfLines={1}>
-                  {app.patientName}
+                  {app.patient_name || 'Patient'}
                 </Text>
                 <Text className="text-slate-500 text-[13px] mt-0.5" numberOfLines={1}>
-                  {app.treatmentType}
+                  {app.treatment_type || 'General Consultation'}
                 </Text>
               </View>
               <ChevronRight size={20} color="#cbd5e1" />

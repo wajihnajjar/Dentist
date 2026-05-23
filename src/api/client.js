@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-const BASE_URL = 'http://10.197.244.22:5000/api';
+const BASE_URL = 'http://192.168.1.6:5000/api';
 
 const getHeaders = async () => {
   const headers = {
@@ -75,10 +75,51 @@ export const api = {
     return response.json();
   },
 
+  // Get single appointment
+  getAppointment: async (appointmentId) => {
+    const headers = await getHeaders();
+    const response = await fetch(`${BASE_URL}/appointments/${appointmentId}`, { headers });
+    return response.json();
+  },
+
+  // Update appointment details (Dentist Only)
+  updateAppointmentDetails: async (appointmentId, data) => {
+    const headers = await getHeaders();
+    const response = await fetch(`${BASE_URL}/appointments/${appointmentId}/details`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(data)
+    });
+    return response.json();
+  },
+
+  // Confirm an appointment (Protected - Dentist Only)
+  confirmAppointment: async (appointmentId) => {
+    const headers = await getHeaders();
+    const response = await fetch(`${BASE_URL}/appointments/${appointmentId}/confirm`, {
+      method: 'POST',
+      headers,
+    });
+    return response.json();
+  },
+
+  // Cancel an appointment (Protected)
+  cancelAppointment: async (appointmentId) => {
+    const headers = await getHeaders();
+    const response = await fetch(`${BASE_URL}/appointments/${appointmentId}/cancel`, {
+      method: 'POST',
+      headers,
+    });
+    return response.json();
+  },
+
   // Get appointments (Protected - Handles both roles)
   getAppointments: async (role, date) => {
     const headers = await getHeaders();
-    const path = role === 'PATIENT' ? 'patients/me/appointments' : `dentists/me/appointments?date=${date}`;
+    let path = role === 'PATIENT' ? 'patients/me/appointments' : 'dentists/me/appointments';
+    if (date) {
+      path += `?date=${date}`;
+    }
     const response = await fetch(`${BASE_URL}/${path}`, { headers });
     return response.json();
   },
@@ -92,6 +133,39 @@ export const api = {
       method,
       headers,
       body: isBlocked ? null : JSON.stringify({ blocked_date: date })
+    });
+    return response.json();
+  },
+
+  // Update schedules for Dentist (Protected - Dentist Only)
+  updateSchedule: async (schedules) => {
+    const headers = await getHeaders();
+    const response = await fetch(`${BASE_URL}/dentists/me/schedules`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ schedules })
+    });
+    return response.json();
+  },
+
+  // Update dentist profile (Protected - Dentist Only)
+  updateProfile: async (data) => {
+    const headers = await getHeaders();
+    const response = await fetch(`${BASE_URL}/dentists/me`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(data)
+    });
+    return response.json();
+  },
+
+  // Rate a completed appointment (Protected - Patient Only)
+  rateAppointment: async (appointmentId, data) => {
+    const headers = await getHeaders();
+    const response = await fetch(`${BASE_URL}/appointments/${appointmentId}/rate`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data)
     });
     return response.json();
   }

@@ -1,36 +1,71 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Mail, Lock, ChevronLeft, ArrowRight } from 'lucide-react-native';
 import * as SecureStore from 'expo-secure-store';
 import { api } from '../../api/client';
+import AppAlertModal from '../../components/AppAlertModal';
 
 const PatientLoginScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [alert, setAlert] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    tone: 'info',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (opts = {}) => {
+    const { onConfirm: userOnConfirm, ...rest } = opts;
+    setAlert({
+      visible: true,
+      tone: 'info',
+      title: '',
+      message: '',
+      ...rest,
+      onConfirm: () => {
+        userOnConfirm?.();
+        setAlert((a) => ({ ...a, visible: false }));
+      },
+    });
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password');
+      showAlert({
+        title: 'Error',
+        message: 'Please enter both email and password',
+        tone: 'danger',
+      });
       return;
     }
 
     setIsLoading(true);
     try {
-      const data = await api.login({ email, password });
+      const data = await api.login({ email, password, role: "PATIENT"});
 
       if (data.token) {
         await SecureStore.setItemAsync('userToken', data.token);
         navigation.replace('PatientTabs');
       } else {
-        Alert.alert('Login Failed', data.error || 'Invalid credentials');
+        showAlert({
+          title: 'Login failed',
+          message: data.error || 'Invalid credentials',
+          tone: 'danger',
+        });
       }
     } catch (error) {
       console.error(error);
-      Alert.alert('Connection Error', 'Could not connect to the server. Please check your network.');
+      showAlert({
+        title: 'Connection error',
+        message: 'Could not connect to the server. Please check your network.',
+        tone: 'danger',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -106,9 +141,6 @@ const PatientLoginScreen = ({ navigation }) => {
                 onChangeText={setPassword}
               />
             </View>
-            <TouchableOpacity className="self-end mt-3 px-2">
-              <Text className="text-brand-600 font-bold text-[14px]">Forgot password?</Text>
-            </TouchableOpacity>
           </View>
 
           <TouchableOpacity
@@ -135,6 +167,14 @@ const PatientLoginScreen = ({ navigation }) => {
           </View>
         </Animated.View>
       </ScrollView>
+
+      <AppAlertModal
+        visible={alert.visible}
+        title={alert.title}
+        message={alert.message}
+        tone={alert.tone}
+        onConfirm={alert.onConfirm}
+      />
     </KeyboardAvoidingView>
   );
 };

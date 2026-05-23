@@ -1,16 +1,74 @@
-import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { mockPatients, dentistUser } from '../../data/mockData';
+import { useFocusEffect } from '@react-navigation/native';
+import { api } from '../../api/client';
 import { ChevronLeft, User, Phone, ChevronRight } from 'lucide-react-native';
 
 const DentistPatientsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const list = useMemo(
-    () => mockPatients.filter((p) => p.dentistId === dentistUser.id).sort((a, b) => (a.name > b.name ? 1 : -1)),
-    []
+  const loadPatients = async () => {
+    try {
+      // We derive the patient list from all appointments
+      const appointments = await api.getAppointments('DENTIST');
+      
+      const uniquePatientsMap = {};
+      
+      if (Array.isArray(appointments)) {
+        appointments.forEach((app) => {
+          if (!app.patient_id) return;
+          
+          if (!uniquePatientsMap[app.patient_id]) {
+            uniquePatientsMap[app.patient_id] = {
+              id: app.patient_id,
+              name: app.patient_name || 'Unknown',
+              phone: app.phone || 'No phone',
+              email: app.email || 'No email',
+              lastVisit: app.appointment_date,
+              appointments: [app]
+            };
+          } else {
+            // Add appointment to history and update lastVisit if more recent
+            uniquePatientsMap[app.patient_id].appointments.push(app);
+            if (app.appointment_date > uniquePatientsMap[app.patient_id].lastVisit) {
+              uniquePatientsMap[app.patient_id].lastVisit = app.appointment_date;
+            }
+          }
+        });
+      }
+
+      const patientList = Object.values(uniquePatientsMap).sort((a, b) => (a.name > b.name ? 1 : -1));
+      setPatients(patientList);
+    } catch (error) {
+      console.error('Failed to load patients:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPatients();
+    }, [])
   );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadPatients();
+  };
+
+  if (loading && !refreshing) {
+    return (
+      <View className="flex-1 bg-canvas items-center justify-center">
+        <ActivityIndicator size="large" color="#0d9488" />
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-canvas" style={{ paddingTop: insets.top + 8 }}>
@@ -23,7 +81,7 @@ const DentistPatientsScreen = ({ navigation }) => {
         </TouchableOpacity>
         <View className="flex-1">
           <Text className="text-[26px] font-bold text-ink tracking-tight">Patients</Text>
-          <Text className="text-slate-500 text-[14px] mt-1">{list.length} in your practice</Text>
+          <Text className="text-slate-500 text-[14px] mt-1">{patients.length} in your practice</Text>
         </View>
       </View>
 
@@ -31,8 +89,9 @@ const DentistPatientsScreen = ({ navigation }) => {
         className="flex-1 px-5 mt-4"
         contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0d9488" />}
       >
-        {list.map((p) => (
+        {patients.map((p) => (
           <TouchableOpacity
             key={p.id}
             onPress={() => navigation.navigate('DentistPatientDetail', { patient: p })}

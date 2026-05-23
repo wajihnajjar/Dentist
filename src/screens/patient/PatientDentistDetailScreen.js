@@ -9,6 +9,16 @@ const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1622253692010-333f2da60
 const PatientDentistDetailScreen = ({ route, navigation }) => {
   const { dentist } = route.params;
   const insets = useSafeAreaInsets();
+  const averageRating = Number(dentist.rating) || 0;
+  const ratingCount = Number(dentist.rating_count) || 0;
+  const reviews = Array.isArray(dentist.ratings) ? dentist.ratings : [];
+
+  const formatRatedAt = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString();
+  };
 
   return (
     <View className="flex-1 bg-canvas">
@@ -47,9 +57,21 @@ const PatientDentistDetailScreen = ({ route, navigation }) => {
         </View>
 
         <Animated.View entering={FadeInDown.duration(400).springify()} className="px-6 pt-8">
+          <View className="bg-white rounded-[24px] border border-slate-200/80 px-5 py-4 mb-6 flex-row items-center justify-between shadow-sm shadow-slate-900/5">
+            <View className="flex-row items-center">
+              <Star size={18} color="#f59e0b" fill="#f59e0b" />
+              <Text className="text-ink font-bold text-[18px] ml-2">
+                {averageRating > 0 ? averageRating.toFixed(1) : 'New'}
+              </Text>
+            </View>
+            <Text className="text-slate-500 font-medium">
+              {ratingCount} {ratingCount === 1 ? 'rating' : 'ratings'}
+            </Text>
+          </View>
+
           <Text className="text-[20px] font-bold text-ink mb-3 tracking-tight">About</Text>
           <Text className="text-slate-500 text-[15px] leading-7">
-            {dentist.name} is a highly experienced {dentist.specialty.toLowerCase()} dedicated to providing exceptional dental care. With a focus on patient comfort and utilizing the latest technology, they ensure every visit is stress-free and effective.
+            {dentist.bio || `${dentist.name} is a highly experienced ${dentist.specialty?.toLowerCase() || 'dental professional'} dedicated to providing exceptional dental care. With a focus on patient comfort and utilizing the latest technology, they ensure every visit is stress-free and effective.`}
           </Text>
 
           <View className="mt-8 bg-white p-5 rounded-[24px] border border-slate-200/80 shadow-sm shadow-slate-900/5">
@@ -58,8 +80,12 @@ const PatientDentistDetailScreen = ({ route, navigation }) => {
                 <GraduationCap size={22} color="#0d9488" />
               </View>
               <View className="ml-4 flex-1">
-                <Text className="text-ink font-bold text-[16px]">Experience</Text>
-                <Text className="text-slate-500 text-sm mt-1 leading-5">10+ years in general and cosmetic dentistry.</Text>
+                <Text className="text-ink font-bold text-[16px]">Experience & Education</Text>
+                <Text className="text-slate-500 text-sm mt-1 leading-5">
+                  {dentist.years_of_experience ? `${dentist.years_of_experience}+ years in practice.\n` : ''}
+                  {dentist.education ? `Educated at ${dentist.education}.` : ''}
+                  {!dentist.years_of_experience && !dentist.education && 'Information not provided.'}
+                </Text>
               </View>
             </View>
 
@@ -69,7 +95,9 @@ const PatientDentistDetailScreen = ({ route, navigation }) => {
               </View>
               <View className="ml-4 flex-1">
                 <Text className="text-ink font-bold text-[16px]">Location</Text>
-                <Text className="text-slate-500 text-sm mt-1 leading-5">Downtown Medical Center, Suite 402</Text>
+                <Text className="text-slate-500 text-sm mt-1 leading-5">
+                  {dentist.address || 'Address not provided'}
+                </Text>
               </View>
             </View>
 
@@ -79,9 +107,46 @@ const PatientDentistDetailScreen = ({ route, navigation }) => {
               </View>
               <View className="ml-4 flex-1">
                 <Text className="text-ink font-bold text-[16px]">Contact</Text>
-                <Text className="text-slate-500 text-sm mt-1 leading-5">+1 (555) 123-4567</Text>
+                <Text className="text-slate-500 text-sm mt-1 leading-5">{dentist.phone || 'Phone not provided'}</Text>
               </View>
             </View>
+          </View>
+
+          <View className="mt-6">
+            <Text className="text-[20px] font-bold text-ink mb-3 tracking-tight">Patient Reviews</Text>
+            {reviews.length > 0 ? (
+              reviews.map((review, index) => (
+                <View
+                  key={`${review.appointment_id || index}`}
+                  className="bg-white p-4 rounded-2xl border border-slate-200/80 mb-3 shadow-sm shadow-slate-900/5"
+                >
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-row items-center">
+                      <Star size={15} color="#f59e0b" fill="#f59e0b" />
+                      <Text className="text-slate-900 font-bold ml-1.5">
+                        {Number(review.rating) || 0}/5
+                      </Text>
+                    </View>
+                    <Text className="text-slate-400 text-xs">
+                      {formatRatedAt(review.rated_at)}
+                    </Text>
+                  </View>
+                  {review.comment ? (
+                    <Text className="text-slate-600 text-sm mt-2 leading-6">
+                      {review.comment}
+                    </Text>
+                  ) : (
+                    <Text className="text-slate-400 text-sm mt-2 italic">
+                      No comment provided.
+                    </Text>
+                  )}
+                </View>
+              ))
+            ) : (
+              <View className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm shadow-slate-900/5">
+                <Text className="text-slate-500">No patient reviews yet.</Text>
+              </View>
+            )}
           </View>
         </Animated.View>
       </ScrollView>

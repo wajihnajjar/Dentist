@@ -1,10 +1,16 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Calendar } from 'react-native-calendars';
 import { api } from '../../api/client';
-import { dummyUser, dentists } from '../../data/mockData';
-import { Clock, Calendar as CalendarIcon, User, Settings, CalendarHeart, ChevronRight } from 'lucide-react-native';
+import {
+  Clock,
+  Calendar as CalendarIcon,
+  User,
+  Settings,
+  CalendarHeart,
+  ChevronRight,
+} from 'lucide-react-native';
 
 const formatLong = (iso) => {
   try {
@@ -24,25 +30,79 @@ const CalendarScreen = ({ navigation, route }) => {
   const todayIso = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(todayIso);
   const [appointments, setAppointments] = useState([]);
+  
+  // Real blocked dates fetched from the user profile
   const [blockedDates, setBlockedDates] = useState({});
   const [isLoading, setIsLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState(null);
 
   const isPatientBookings = route.name === 'Bookings';
 
   useEffect(() => {
-    const loadData = async () => {
+    const loadProfileAndDates = async () => {
+      try {
+        const me = await api.getMe();
+        setUserProfile(me);
+        
+        // If dentist, pre-populate blocked dates (assuming backend returns them, otherwise just manage local state for toggles)
+        // For this implementation, we will rely on the toggle updating the DB and local state
+      } catch (error) {
+        console.error('Failed to load profile:', error);
+      }
+    };
+    loadProfileAndDates();
+  }, []);
+
+  useEffect(() => {
+    if (isPatientBookings) return;
+
+    let isMounted = true;
+    const pollForNewAppointments = async () => {
+      try {
+        const data = await api.getAppointments('DENTIST');
+        const allAppointments = Array.isArray(data) ? data : [];
+        if (isMounted) {
+        }
+      } catch (error) {
+        console.error('Failed to poll appointments for notifications:', error);
+      }
+    };
+
+    pollForNewAppointments();
+    const interval = setInterval(pollForNewAppointments, 60000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [isPatientBookings]);
+
+  useEffect(() => {
+    const loadAppointments = async () => {
       setIsLoading(true);
       try {
         const role = isPatientBookings ? 'PATIENT' : 'DENTIST';
         const data = await api.getAppointments(role, selectedDate);
-        setAppointments(data);
+        
+        // Ensure data is an array and filter it locally just in case the backend returns all dates
+        const allAppointments = Array.isArray(data) ? data : [];
+        const filteredAppointments = allAppointments.filter(
+          (app) => {
+            // Backend might return "2026-05-15T00:00:00.000Z", we just need "2026-05-15"
+            const dbDate = app.appointment_date ? app.appointment_date.split('T')[0] : '';
+            return dbDate === selectedDate;
+          }
+        );
+        
+        setAppointments(filteredAppointments);
       } catch (error) {
         console.error('Failed to load appointments:', error);
+        setAppointments([]);
       } finally {
         setIsLoading(false);
       }
     };
-    loadData();
+    loadAppointments();
   }, [selectedDate, isPatientBookings]);
 
   const toggleVacation = async () => {
@@ -100,7 +160,7 @@ const CalendarScreen = ({ navigation, route }) => {
               {isPatientBookings ? 'Hello,' : 'Welcome back,'}
             </Text>
             <Text className="text-white text-[30px] font-bold mt-1 tracking-tight leading-tight">
-              {isPatientBookings ? dummyUser.name : 'Dr. Sarah Smith'}
+              {userProfile?.profile?.full_name || 'Loading...'}
             </Text>
             <Text className="text-slate-400 text-[15px] mt-3 leading-6">{subtitle}</Text>
           </View>
@@ -192,7 +252,9 @@ const CalendarScreen = ({ navigation, route }) => {
             </View>
           </View>
 
-          {appointments.length > 0 ? (
+          {isLoading ? (
+            <ActivityIndicator size="large" color="#0d9488" style={{ marginTop: 40 }} />
+          ) : appointments.length > 0 ? (
             appointments.map((app) => (
               <TouchableOpacity
                 key={app.id}
@@ -209,24 +271,24 @@ const CalendarScreen = ({ navigation, route }) => {
                   <Clock size={22} color="#0d9488" />
                 </View>
                 <View className="flex-1 min-w-0">
-                  <Text className="text-lg font-bold text-ink">{app.time}</Text>
+                  <Text className="text-lg font-bold text-ink">{app.start_time.substring(0, 5)}</Text>
                   <View className="flex-row items-center mt-1">
                     <User size={14} color="#94a3b8" />
                     <Text className="text-slate-600 ml-1.5 font-medium text-[14px]" numberOfLines={2}>
                       {isPatientBookings
-                        ? `With ${dentists.find((d) => d.id === app.dentistId)?.name ?? 'your clinic'}`
-                        : app.patientName}
+                        ? `With ${app.dentist_name || app.practice_name}`
+                        : app.patient_name}
                     </Text>
                   </View>
                 </View>
                 <View
                   className={`px-3 py-1.5 rounded-full ${
-                    app.status === 'Confirmed' ? 'bg-emerald-50' : 'bg-amber-50'
+                    app.status === 'CONFIRMED' || app.status === 'SCHEDULED' ? 'bg-emerald-50' : 'bg-amber-50'
                   }`}
                 >
                   <Text
                     className={`text-[11px] font-bold uppercase tracking-wide ${
-                      app.status === 'Confirmed' ? 'text-emerald-700' : 'text-amber-800'
+                      app.status === 'CONFIRMED' || app.status === 'SCHEDULED' ? 'text-emerald-700' : 'text-amber-800'
                     }`}
                   >
                     {app.status}

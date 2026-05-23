@@ -1,8 +1,9 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommonActions } from '@react-navigation/native';
-import { dentistUser } from '../../data/mockData';
+import * as SecureStore from 'expo-secure-store';
+import { api } from '../../api/client';
 import {
   Building2,
   Mail,
@@ -16,11 +17,41 @@ import {
 
 const DentistAccountScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const signOut = () => {
-    const stack = navigation.getParent()?.getParent?.() ?? navigation.getParent();
-    stack?.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'Login' }] }));
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const res = await api.getMe();
+        // Assuming backend returns { user: {...}, profile: {...} }
+        setProfile({ ...res.profile, email: res.user?.email || res.email });
+      } catch (error) {
+        console.error('Failed to load profile:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadProfile();
+  }, []);
+
+  const signOut = async () => {
+    try {
+      await SecureStore.deleteItemAsync('userToken');
+      const stack = navigation.getParent()?.getParent?.() ?? navigation.getParent();
+      stack?.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'Login' }] }));
+    } catch (error) {
+      console.error('Failed to sign out:', error);
+    }
   };
+
+  if (loading) {
+    return (
+      <View className="flex-1 bg-canvas items-center justify-center">
+        <ActivityIndicator size="large" color="#0d9488" />
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-canvas">
@@ -45,23 +76,20 @@ const DentistAccountScreen = ({ navigation }) => {
               <Stethoscope size={30} color="white" />
             </View>
             <View className="flex-1 ml-4">
-              <Text className="text-xl font-bold text-ink">{dentistUser.name}</Text>
+              <Text className="text-xl font-bold text-ink">{profile?.full_name || 'Loading...'}</Text>
               <View className="self-start bg-brand-50 px-3 py-1 rounded-full mt-2 border border-brand-100">
-                <Text className="text-brand-800 text-[12px] font-bold">{dentistUser.specialty}</Text>
+                <Text className="text-brand-800 text-[12px] font-bold">{profile?.practice_name || 'My Clinic'}</Text>
               </View>
             </View>
           </View>
-          <View className="flex-row items-center mt-6 pt-6 border-t border-slate-100">
-            <Building2 size={18} color="#64748b" />
-            <Text className="text-slate-700 ml-3 flex-1 text-[15px] leading-5">{dentistUser.practiceName}</Text>
-          </View>
+      
           <View className="flex-row items-center mt-4">
             <Mail size={18} color="#64748b" />
-            <Text className="text-slate-700 ml-3 flex-1 text-[15px]">{dentistUser.email}</Text>
+            <Text className="text-slate-700 ml-3 flex-1 text-[15px]">{profile?.email || 'No email'}</Text>
           </View>
           <View className="flex-row items-center mt-4">
             <Phone size={18} color="#64748b" />
-            <Text className="text-slate-700 ml-3 flex-1 text-[15px]">{dentistUser.phone}</Text>
+            <Text className="text-slate-700 ml-3 flex-1 text-[15px]">{profile?.phone || 'No phone'}</Text>
           </View>
         </View>
 

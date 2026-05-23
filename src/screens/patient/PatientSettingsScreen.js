@@ -37,20 +37,7 @@ const PatientSettingsScreen = ({ navigation }) => {
             </View>
             <Switch value={smsReminders} onValueChange={setSmsReminders} trackColor={{ true: '#99f6e4' }} />
           </View>
-          <View className="flex-row items-center justify-between px-5 py-4 border-b border-slate-100">
-            <View className="flex-row items-center flex-1 pr-3">
-              <Mail size={20} color="#0d9488" />
-              <Text className="text-slate-900 font-semibold ml-3">Email confirmations</Text>
-            </View>
-            <Switch value={emailAppts} onValueChange={setEmailAppts} trackColor={{ true: '#99f6e4' }} />
-          </View>
-          <View className="flex-row items-center justify-between px-5 py-4">
-            <View className="flex-row items-center flex-1 pr-3">
-              <MessageSquare size={20} color="#0d9488" />
-              <Text className="text-slate-900 font-semibold ml-3">Tips & oral health updates</Text>
-            </View>
-            <Switch value={promos} onValueChange={setPromos} trackColor={{ true: '#99f6e4' }} />
-          </View>
+       
         </View>
 
         <Text className="text-slate-400 text-xs mt-4 px-1 leading-5">

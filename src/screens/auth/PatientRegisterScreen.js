@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Mail, Lock, ChevronLeft, ArrowRight, User, Phone, Calendar } from 'lucide-react-native';
 import * as SecureStore from 'expo-secure-store';
 import { api } from '../../api/client';
+import AppAlertModal from '../../components/AppAlertModal';
 
 const PatientRegisterScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -14,10 +15,36 @@ const PatientRegisterScreen = ({ navigation }) => {
   const [dob, setDob] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [alert, setAlert] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    tone: 'info',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (opts = {}) => {
+    const { onConfirm: userOnConfirm, ...rest } = opts;
+    setAlert({
+      visible: true,
+      tone: 'info',
+      title: '',
+      message: '',
+      ...rest,
+      onConfirm: () => {
+        userOnConfirm?.();
+        setAlert((a) => ({ ...a, visible: false }));
+      },
+    });
+  };
 
   const handleRegister = async () => {
     if (!name || !email || !password) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      showAlert({
+        title: 'Error',
+        message: 'Please fill in all required fields',
+        tone: 'danger',
+      });
       return;
     }
 
@@ -36,10 +63,18 @@ const PatientRegisterScreen = ({ navigation }) => {
         await SecureStore.setItemAsync('userToken', data.token);
         navigation.replace('PatientTabs');
       } else {
-        Alert.alert('Registration Failed', data.error || 'Something went wrong');
+        showAlert({
+          title: 'Registration failed',
+          message: data.error || 'Something went wrong',
+          tone: 'danger',
+        });
       }
     } catch (error) {
-      Alert.alert('Connection Error', 'Could not connect to the server.');
+      showAlert({
+        title: 'Connection error',
+        message: 'Could not connect to the server.',
+        tone: 'danger',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -191,6 +226,14 @@ const PatientRegisterScreen = ({ navigation }) => {
           </View>
         </Animated.View>
       </ScrollView>
+
+      <AppAlertModal
+        visible={alert.visible}
+        title={alert.title}
+        message={alert.message}
+        tone={alert.tone}
+        onConfirm={alert.onConfirm}
+      />
     </KeyboardAvoidingView>
   );
 };

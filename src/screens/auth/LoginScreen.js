@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
-import { ShieldCheck, Stethoscope, Sparkles, User, ArrowRight, ChevronRight } from 'lucide-react-native';
+import { ShieldCheck, Stethoscope, Sparkles, User, ArrowRight, ChevronRight, PlayCircle } from 'lucide-react-native';
+import { Video, ResizeMode } from 'expo-av';
 
 const { width } = Dimensions.get('window');
 
@@ -25,6 +26,15 @@ const LoginScreen = ({ navigation }) => {
   return (
     <View className="flex-1 bg-slate-50">
       <View className="absolute top-0 left-0 right-0 h-2/3 bg-slate-950 rounded-b-[80px] overflow-hidden">
+        <Video
+          source={{ uri: 'https://d23dyxeqlo5psv.cloudfront.net/big_buck_bunny.mp4' }}
+          style={{ position: 'absolute', top: 0, left: 0, bottom: 0, right: 0, opacity: 0.6 }}
+          resizeMode={ResizeMode.COVER}
+          shouldPlay
+          isLooping
+          isMuted
+        />
+        <View className="absolute inset-0 bg-slate-950/40" />
         <View className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-brand-500/20" />
         <View className="absolute top-40 -left-20 w-72 h-72 rounded-full bg-brand-400/10" />
       </View>
@@ -110,7 +120,19 @@ const LoginScreen = ({ navigation }) => {
           </Animated.View>
         </View>
 
-        <Animated.View entering={FadeInUp.delay(500).duration(500)} className="mt-auto pt-8 items-center">
+        <Animated.View entering={FadeInUp.delay(650).duration(500)} className="mt-6 items-center">
+          <TouchableOpacity
+            onPress={() => navigation.navigate('PatientEducation')}
+            activeOpacity={0.8}
+            className="flex-row items-center bg-white/60 px-6 py-4 rounded-full border border-slate-200/60 shadow-sm shadow-slate-900/5"
+          >
+            <PlayCircle size={20} color="#0d9488" />
+            <Text className="text-slate-700 text-[15px] font-bold ml-2">Watch Education Videos</Text>
+            <ChevronRight size={16} color="#94a3b8" className="ml-2" />
+          </TouchableOpacity>
+        </Animated.View>
+
+        <Animated.View entering={FadeInUp.delay(800).duration(500)} className="mt-8 mb-4 items-center">
           <View className="flex-row items-center">
             <ShieldCheck size={16} color="#94a3b8" />
             <Text className="text-slate-400 text-[13px] ml-2 font-medium">Secure & HIPAA Compliant Portal</Text>

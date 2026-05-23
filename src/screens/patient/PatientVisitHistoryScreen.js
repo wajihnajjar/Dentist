@@ -1,16 +1,31 @@
-import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { mockAppointments, dummyUser, dentists } from '../../data/mockData';
+import { api } from '../../api/client';
 import { ChevronLeft, Stethoscope } from 'lucide-react-native';
 
 const PatientVisitHistoryScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const [visits, setVisits] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const visits = useMemo(() => {
-    return mockAppointments
-      .filter((a) => a.patientName === dummyUser.name || a.patientId === dummyUser.id)
-      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.time.localeCompare(a.time)));
+  useEffect(() => {
+    const loadAppointments = async () => {
+      setIsLoading(true);
+      try {
+        const data = await api.getAppointments('PATIENT', null);
+        // Sort newest first
+        const sorted = (Array.isArray(data) ? data : []).sort((a, b) => 
+          (a.appointment_date < b.appointment_date ? 1 : a.appointment_date > b.appointment_date ? -1 : 0)
+        );
+        setVisits(sorted);
+      } catch (error) {
+        console.error('Failed to load visit history:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadAppointments();
   }, []);
 
   return (
@@ -33,12 +48,18 @@ const PatientVisitHistoryScreen = ({ navigation }) => {
         contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
         showsVerticalScrollIndicator={false}
       >
-        {visits.length === 0 ? (
+        {isLoading ? (
+          <ActivityIndicator size="large" color="#0d9488" style={{ marginTop: 40 }} />
+        ) : visits.length === 0 ? (
           <View className="bg-white rounded-[28px] p-10 border border-dashed border-slate-200 items-center mt-4">
             <Text className="text-slate-500 text-center text-[15px]">No visits on file yet.</Text>
           </View>
         ) : (
-          visits.map((app) => (
+          visits.map((app) => {
+            const hasRecord = !!(app.diagnosis || app.prescription || app.clinical_notes || app.notes);
+            const displayStatus = hasRecord ? 'DONE' : (app.status || 'PENDING');
+
+            return (
             <TouchableOpacity
               key={app.id}
               onPress={() => navigation.navigate('PatientAppointmentDetail', { appointment: app })}
@@ -48,29 +69,33 @@ const PatientVisitHistoryScreen = ({ navigation }) => {
                 <Stethoscope size={22} color="#0d9488" />
               </View>
               <View className="flex-1 min-w-0">
-                <Text className="text-slate-900 font-bold text-[16px]">{app.treatmentType}</Text>
+                <Text className="text-slate-900 font-bold text-[16px]">{app.treatment_type || 'Consultation'}</Text>
                 <Text className="text-slate-500 text-sm mt-1">
-                  {app.date} · {app.time}
+                  {app.appointment_date ? app.appointment_date.split('T')[0] : ''} · {app.start_time?.substring(0, 5)}
                 </Text>
                 <Text className="text-brand-700 text-sm font-medium mt-1" numberOfLines={1}>
-                  {dentists.find((d) => d.id === app.dentistId)?.name ?? 'Clinic'}
+                  {app.practice_name || app.dentist_name || 'Clinic'}
                 </Text>
               </View>
               <View
                 className={`px-2.5 py-1 rounded-full ${
-                  app.status === 'Confirmed' ? 'bg-emerald-50' : 'bg-amber-50'
+                  displayStatus === 'DONE' ? 'bg-indigo-50' :
+                  displayStatus === 'CONFIRMED' || displayStatus === 'SCHEDULED' ? 'bg-emerald-50' : 
+                  displayStatus === 'CANCELLED' ? 'bg-red-50' : 'bg-amber-50'
                 }`}
               >
                 <Text
                   className={`text-xs font-bold ${
-                    app.status === 'Confirmed' ? 'text-emerald-700' : 'text-amber-800'
+                    displayStatus === 'DONE' ? 'text-indigo-700' :
+                    displayStatus === 'CONFIRMED' || displayStatus === 'SCHEDULED' ? 'text-emerald-700' : 
+                    displayStatus === 'CANCELLED' ? 'text-red-700' : 'text-amber-800'
                   }`}
                 >
-                  {app.status}
+                  {displayStatus}
                 </Text>
               </View>
             </TouchableOpacity>
-          ))
+          )})
         )}
       </ScrollView>
     </View>

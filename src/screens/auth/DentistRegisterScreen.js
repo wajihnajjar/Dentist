@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, StyleSheet, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, StyleSheet, ActivityIndicator, Image, Modal, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
-import { Mail, Lock, ChevronLeft, ArrowRight, User, Stethoscope, BriefcaseMedical, MapPin, Phone, Building2, GraduationCap, Award, Camera, Clock } from 'lucide-react-native';
+import { Mail, Lock, ChevronLeft, ArrowRight, User, Stethoscope, BriefcaseMedical, MapPin, Phone, Building2, GraduationCap, Award, Camera, Clock, FileText, Coins } from 'lucide-react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
 import { api } from '../../api/client';
+import AppAlertModal from '../../components/AppAlertModal';
 
 const DAYS = [
   { label: 'Mon', value: 1 },
@@ -19,20 +20,61 @@ const DAYS = [
   { label: 'Sun', value: 0 },
 ];
 
+const SPECIALTIES = [
+  'General Dentist',
+  'Orthodontist',
+  'Endodontist',
+  'Periodontist',
+  'Oral Surgeon',
+  'Pediatric Dentist'
+];
+
+const STATES = [
+  'Tunis', 'Sfax', 'Sousse', 'Kairouan', 'Bizerte', 'Gabes', 'Ariana', 'Gafsa', 'Monastir', 'Ben Arous'
+];
+
 const DentistRegisterScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [practiceName, setPracticeName] = useState('');
+  const [isSpecialtyModalVisible, setIsSpecialtyModalVisible] = useState(false);
   const [license, setLicense] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [bio, setBio] = useState('');
+  const [isStateModalVisible, setIsStateModalVisible] = useState(false);
   const [experience, setExperience] = useState('');
+  const [consultationFee, setConsultationFee] = useState('');
   const [education, setEducation] = useState('');
   const [photo, setPhoto] = useState(null);
   const [password, setPassword] = useState('');
-  const [coordinate, setCoordinate] = useState(null);
+  const [coordinate, setCoordinate] = useState(null); 
   const [isLoading, setIsLoading] = useState(false);
+  const [alert, setAlert] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    tone: 'info',
+    onConfirm: () => {},
+  });
+
+  const showAlert = (opts = {}) => {
+    const { onConfirm: userOnConfirm, ...rest } = opts;
+    setAlert({
+      visible: true,
+      tone: 'info',
+      title: '',
+      message: '',
+      ...rest,
+      onConfirm: () => {
+        userOnConfirm?.();
+        setAlert((a) => ({ ...a, visible: false }));
+      },
+    });
+  };
+
   const [initialRegion, setInitialRegion] = useState({
     latitude: 37.78825,
     longitude: -122.4324,
@@ -74,7 +116,11 @@ const DentistRegisterScreen = ({ navigation }) => {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'We need access to your gallery to upload a photo.');
+      showAlert({
+        title: 'Permission denied',
+        message: 'We need access to your gallery to upload a photo.',
+        tone: 'danger',
+      });
       return;
     }
 
@@ -127,12 +173,28 @@ const DentistRegisterScreen = ({ navigation }) => {
 
   const handleRegister = async () => {
     if (!name || !email || !password || !license) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      showAlert({
+        title: 'Error',
+        message: 'Please fill in all required fields',
+        tone: 'danger',
+      });
       return;
     }
 
     if (!coordinate) {
-      Alert.alert('Location Missing', 'Please select your clinic location on the map.');
+      showAlert({
+        title: 'Location missing',
+        message: 'Please select your clinic location on the map.',
+        tone: 'danger',
+      });
+      return;
+    }
+    if (consultationFee && Number.isNaN(Number(consultationFee))) {
+      showAlert({
+        title: 'Invalid fee',
+        message: 'Consultation fee must be a valid number.',
+        tone: 'danger',
+      });
       return;
     }
 
@@ -143,9 +205,13 @@ const DentistRegisterScreen = ({ navigation }) => {
       if (photo) {
         uploadedImageUrl = await uploadImageToCloudinary(photo);
         if (!uploadedImageUrl) {
-           Alert.alert('Upload Failed', 'Could not upload your profile picture. Please try again.');
-           setIsLoading(false);
-           return;
+          showAlert({
+            title: 'Upload failed',
+            message: 'Could not upload your profile picture. Please try again.',
+            tone: 'danger',
+          });
+          setIsLoading(false);
+          return;
         }
       }
 
@@ -165,25 +231,37 @@ const DentistRegisterScreen = ({ navigation }) => {
         email,
         phone,
         address,
+        city, // Added city/state field for the backend/MapScreen filtering
         experience,
+        consultation_fee: consultationFee ? Number(consultationFee) : undefined,
         education,
+        bio, // Added bio field
         image_url: uploadedImageUrl, // Send the secure Cloudinary URL to the backend
         password,
         latitude: coordinate.latitude,
         longitude: coordinate.longitude,
         role: 'DENTIST',
-        schedule: scheduleArray
+        schedule: scheduleArray,
+        state: city,
       });
 
       if (data.token) {
         await SecureStore.setItemAsync('userToken', data.token);
         navigation.replace('DentistTabs');
       } else {
-        Alert.alert('Registration Failed', data.error || 'Something went wrong');
+        showAlert({
+          title: 'Registration failed',
+          message: data.error || 'Something went wrong',
+          tone: 'danger',
+        });
       }
     } catch (error) {
       console.error(error);
-      Alert.alert('Connection Error', 'Could not connect to the server.');
+      showAlert({
+        title: 'Connection error',
+        message: 'Could not connect to the server.',
+        tone: 'danger',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -267,18 +345,17 @@ const DentistRegisterScreen = ({ navigation }) => {
 
           <View className="mb-5">
             <Text className="text-slate-500 text-[13px] font-bold uppercase tracking-wider mb-2 ml-1">
-              Practice Name
+              Speciality
             </Text>
-            <View className="flex-row items-center bg-white h-16 rounded-[24px] px-5 border border-slate-200 shadow-sm shadow-slate-900/5">
+            <TouchableOpacity 
+              onPress={() => setIsSpecialtyModalVisible(true)}
+              className="flex-row items-center bg-white h-16 rounded-[24px] px-5 border border-slate-200 shadow-sm shadow-slate-900/5"
+            >
               <Building2 size={20} color="#94a3b8" />
-              <TextInput
-                className="flex-1 ml-3 text-[16px] text-ink font-medium"
-                placeholder="Smile Clinic"
-                placeholderTextColor="#94a3b8"
-                value={practiceName}
-                onChangeText={setPracticeName}
-              />
-            </View>
+              <Text className={`flex-1 ml-3 text-[16px] font-medium ${practiceName ? 'text-ink' : 'text-slate-400'}`}>
+                {practiceName || 'Select Speciality'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <View className="mb-5">
@@ -335,6 +412,21 @@ const DentistRegisterScreen = ({ navigation }) => {
 
           <View className="mb-5">
             <Text className="text-slate-500 text-[13px] font-bold uppercase tracking-wider mb-2 ml-1">
+              State / Region
+            </Text>
+            <TouchableOpacity 
+              onPress={() => setIsStateModalVisible(true)}
+              className="flex-row items-center bg-white h-16 rounded-[24px] px-5 border border-slate-200 shadow-sm shadow-slate-900/5"
+            >
+              <MapPin size={20} color="#94a3b8" />
+              <Text className={`flex-1 ml-3 text-[16px] font-medium ${city ? 'text-ink' : 'text-slate-400'}`}>
+                {city || 'Select State'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View className="mb-5">
+            <Text className="text-slate-500 text-[13px] font-bold uppercase tracking-wider mb-2 ml-1">
               Clinic Address
             </Text>
             <View className="flex-row items-center bg-white h-16 rounded-[24px] px-5 border border-slate-200 shadow-sm shadow-slate-900/5">
@@ -362,6 +454,23 @@ const DentistRegisterScreen = ({ navigation }) => {
                 keyboardType="numeric"
                 value={experience}
                 onChangeText={setExperience}
+              />
+            </View>
+          </View>
+
+          <View className="mb-5">
+            <Text className="text-slate-500 text-[13px] font-bold uppercase tracking-wider mb-2 ml-1">
+              Consultation Fee (TND)
+            </Text>
+            <View className="flex-row items-center bg-white h-16 rounded-[24px] px-5 border border-slate-200 shadow-sm shadow-slate-900/5">
+              <Coins size={20} color="#94a3b8" />
+              <TextInput
+                className="flex-1 ml-3 text-[16px] text-ink font-medium"
+                placeholder="e.g. 50"
+                placeholderTextColor="#94a3b8"
+                keyboardType="decimal-pad"
+                value={consultationFee}
+                onChangeText={setConsultationFee}
               />
             </View>
           </View>
@@ -412,6 +521,24 @@ const DentistRegisterScreen = ({ navigation }) => {
                   </View>
                 );
               })}
+            </View>
+          </View>
+
+          <View className="mb-5">
+            <Text className="text-slate-500 text-[13px] font-bold uppercase tracking-wider mb-2 ml-1">
+              Professional Bio
+            </Text>
+            <View className="flex-row bg-white rounded-[24px] px-5 py-4 border border-slate-200 shadow-sm shadow-slate-900/5 min-h-[120px]">
+              <FileText size={20} color="#94a3b8" className="mt-1" />
+              <TextInput
+                className="flex-1 ml-3 text-[16px] text-ink font-medium"
+                placeholder="Tell patients about your expertise, treatment philosophy, and background..."
+                placeholderTextColor="#94a3b8"
+                multiline
+                textAlignVertical="top"
+                value={bio}
+                onChangeText={setBio}
+              />
             </View>
           </View>
 
@@ -506,6 +633,90 @@ const DentistRegisterScreen = ({ navigation }) => {
           </View>
         </Animated.View>
       </ScrollView>
+
+      {/* Specialty Picker Modal */}
+      <Modal
+        visible={isSpecialtyModalVisible}
+        transparent
+        animationType="slide"
+      >
+        <View className="flex-1 bg-slate-950/40 justify-end">
+          <View className="bg-white rounded-t-[40px] pt-6 pb-10 px-6 max-h-[70%]">
+            <View className="w-12 h-1.5 bg-slate-200 rounded-full self-center mb-6" />
+            <Text className="text-2xl font-bold text-ink mb-6 text-center">Select Speciality</Text>
+            <FlatList
+              data={SPECIALTIES}
+              keyExtractor={(item) => item}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  onPress={() => {
+                    setPracticeName(item);
+                    setIsSpecialtyModalVisible(false);
+                  }}
+                  className={`p-5 mb-3 rounded-2xl border ${practiceName === item ? 'bg-brand-50 border-brand-200' : 'bg-slate-50 border-slate-100'}`}
+                >
+                  <Text className={`text-[16px] font-semibold ${practiceName === item ? 'text-brand-700' : 'text-slate-700'}`}>
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity 
+              onPress={() => setIsSpecialtyModalVisible(false)}
+              className="mt-4 p-4 rounded-full bg-slate-100 items-center"
+            >
+              <Text className="text-slate-600 font-bold text-[16px]">Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* State Picker Modal */}
+      <Modal
+        visible={isStateModalVisible}
+        transparent
+        animationType="slide"
+      >
+        <View className="flex-1 bg-slate-950/40 justify-end">
+          <View className="bg-white rounded-t-[40px] pt-6 pb-10 px-6 max-h-[70%]">
+            <View className="w-12 h-1.5 bg-slate-200 rounded-full self-center mb-6" />
+            <Text className="text-2xl font-bold text-ink mb-6 text-center">Select State</Text>
+            <FlatList
+              data={STATES}
+              keyExtractor={(item) => item}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  onPress={() => {
+                    setCity(item);
+                    setIsStateModalVisible(false);
+                  }}
+                  className={`p-5 mb-3 rounded-2xl border ${city === item ? 'bg-brand-50 border-brand-200' : 'bg-slate-50 border-slate-100'}`}
+                >
+                  <Text className={`text-[16px] font-semibold ${city === item ? 'text-brand-700' : 'text-slate-700'}`}>
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity 
+              onPress={() => setIsStateModalVisible(false)}
+              className="mt-4 p-4 rounded-full bg-slate-100 items-center"
+            >
+              <Text className="text-slate-600 font-bold text-[16px]">Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <AppAlertModal
+        visible={alert.visible}
+        title={alert.title}
+        message={alert.message}
+        tone={alert.tone}
+        onConfirm={alert.onConfirm}
+      />
     </KeyboardAvoidingView>
   );
 };

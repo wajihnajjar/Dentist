@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Calendar, User, LayoutDashboard, Search } from 'lucide-react-native';
+import { Calendar, User, LayoutDashboard, Search, PlayCircle, ShoppingBag } from 'lucide-react-native';
 
 import LoginScreen from '../screens/auth/LoginScreen';
 import PatientLoginScreen from '../screens/auth/PatientLoginScreen';
@@ -16,6 +16,10 @@ import PatientProfileScreen from '../screens/patient/PatientProfileScreen';
 import PatientVisitHistoryScreen from '../screens/patient/PatientVisitHistoryScreen';
 import PatientAppointmentDetailScreen from '../screens/patient/PatientAppointmentDetailScreen';
 import PatientSettingsScreen from '../screens/patient/PatientSettingsScreen';
+import PatientEducationScreen from '../screens/patient/PatientEducationScreen';
+import PatientShopScreen from '../screens/patient/PatientShopScreen';
+import PatientCheckoutScreen from '../screens/patient/PatientCheckoutScreen';
+import CompareDentistsScreen from '../screens/patient/CompareDentistsScreen';
 
 import CalendarScreen from '../screens/dentist/CalendarScreen';
 import DentistDashboardScreen from '../screens/dentist/DentistDashboardScreen';
@@ -85,6 +89,11 @@ function PatientTabs() {
         options={{ tabBarIcon: ({ color }) => <Calendar size={22} color={color} strokeWidth={2.25} /> }}
       />
       <Tab.Screen
+        name="Shop"
+        component={PatientShopScreen}
+        options={{ tabBarIcon: ({ color }) => <ShoppingBag size={22} color={color} strokeWidth={2.25} /> }}
+      />
+      <Tab.Screen
         name="Profile"
         component={PatientProfileScreen}
         options={{ tabBarIcon: ({ color }) => <User size={22} color={color} strokeWidth={2.25} /> }}
@@ -127,6 +136,7 @@ const AppNavigator = () => (
     <Stack.Screen name="PatientRegister" component={PatientRegisterScreen} />
     <Stack.Screen name="DentistLogin" component={DentistLoginScreen} />
     <Stack.Screen name="DentistRegister" component={DentistRegisterScreen} />
+    <Stack.Screen name="PatientEducation" component={PatientEducationScreen} />
     <Stack.Screen name="PatientTabs" component={PatientTabs} />
     <Stack.Screen name="DentistTabs" component={DentistTabs} />
     <Stack.Screen name="Booking" component={BookingScreen} />
@@ -135,6 +145,8 @@ const AppNavigator = () => (
     <Stack.Screen name="PatientDentistDetail" component={PatientDentistDetailScreen} />
     <Stack.Screen name="PatientAppointmentDetail" component={PatientAppointmentDetailScreen} />
     <Stack.Screen name="PatientSettings" component={PatientSettingsScreen} />
+    <Stack.Screen name="PatientCheckout" component={PatientCheckoutScreen} />
+    <Stack.Screen name="CompareDentists" component={CompareDentistsScreen} />
 
     <Stack.Screen name="DentistPatients" component={DentistPatientsScreen} />
     <Stack.Screen name="DentistPatientDetail" component={DentistPatientDetailScreen} />
