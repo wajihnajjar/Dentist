@@ -212,7 +212,7 @@ const PatientShopScreen = ({ navigation }) => {
       {cartTotalItems > 0 ? (
         <View
           className="absolute left-4 right-4 bg-white rounded-[24px] border border-slate-200/80 px-4 py-3 shadow-xl shadow-slate-900/10"
-          style={{ bottom: insets.bottom + 10 }}
+          style={{ bottom: (insets.bottom > 0 ? insets.bottom : 20) + 70 }}
         >
           <View className="flex-row items-center justify-between mb-2">
             <Text className="text-slate-500 font-medium">

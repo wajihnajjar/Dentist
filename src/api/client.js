@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-const BASE_URL = 'http://192.168.1.6:5000/api';
+const BASE_URL = 'http://192.168.1.10:5000/api';
 
 const getHeaders = async () => {
   const headers = {
@@ -144,6 +144,17 @@ export const api = {
       method: 'PUT',
       headers,
       body: JSON.stringify({ schedules })
+    });
+    return response.json();
+  },
+
+  // Update patient profile (Protected - Patient Only)
+  updatePatientProfile: async (data) => {
+    const headers = await getHeaders();
+    const response = await fetch(`${BASE_URL}/patients/me`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(data)
     });
     return response.json();
   },

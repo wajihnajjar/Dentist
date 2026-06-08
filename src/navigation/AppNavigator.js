@@ -20,6 +20,7 @@ import PatientEducationScreen from '../screens/patient/PatientEducationScreen';
 import PatientShopScreen from '../screens/patient/PatientShopScreen';
 import PatientCheckoutScreen from '../screens/patient/PatientCheckoutScreen';
 import CompareDentistsScreen from '../screens/patient/CompareDentistsScreen';
+import PatientEditProfileScreen from '../screens/patient/PatientEditProfileScreen';
 
 import CalendarScreen from '../screens/dentist/CalendarScreen';
 import DentistDashboardScreen from '../screens/dentist/DentistDashboardScreen';
@@ -145,6 +146,7 @@ const AppNavigator = () => (
     <Stack.Screen name="PatientDentistDetail" component={PatientDentistDetailScreen} />
     <Stack.Screen name="PatientAppointmentDetail" component={PatientAppointmentDetailScreen} />
     <Stack.Screen name="PatientSettings" component={PatientSettingsScreen} />
+    <Stack.Screen name="PatientEditProfile" component={PatientEditProfileScreen} />
     <Stack.Screen name="PatientCheckout" component={PatientCheckoutScreen} />
     <Stack.Screen name="CompareDentists" component={CompareDentistsScreen} />
 

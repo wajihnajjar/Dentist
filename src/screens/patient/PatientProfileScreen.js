@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommonActions } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
 import { api } from '../../api/client';
-import { Mail, Phone, ChevronRight, LogOut, CalendarClock, Bell, Shield } from 'lucide-react-native';
+import { Mail, Phone, ChevronRight, LogOut, CalendarClock, Bell, Shield, Edit3 } from 'lucide-react-native';
 
 const PatientProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -80,9 +80,14 @@ const PatientProfileScreen = ({ navigation }) => {
                 </Text>
               </View>
               <Text className="text-xl font-bold text-ink mt-4">{userProfile?.profile?.full_name || 'User'}</Text>
-              <View className="bg-slate-100 px-4 py-1.5 rounded-full mt-2 border border-slate-200/80">
-                <Text className="text-slate-600 text-[12px] font-bold uppercase tracking-wider">{userProfile?.role || 'Patient'}</Text>
-              </View>
+              
+              <TouchableOpacity
+                onPress={() => navigation.navigate('PatientEditProfile', { profile: userProfile })}
+                className="flex-row items-center bg-brand-50 px-4 py-2 rounded-full mt-3 border border-brand-100"
+              >
+                <Edit3 size={14} color="#0d9488" />
+                <Text className="text-brand-700 text-sm font-bold ml-1.5">Edit Profile</Text>
+              </TouchableOpacity>
             </View>
 
             <View className="bg-white rounded-[28px] px-5 mt-5 border border-slate-200/80 shadow-sm">
