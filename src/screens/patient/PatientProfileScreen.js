@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CommonActions } from '@react-navigation/native';
+import { CommonActions, useFocusEffect } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
 import { api } from '../../api/client';
 import { Mail, Phone, ChevronRight, LogOut, CalendarClock, Bell, Shield, Edit3 } from 'lucide-react-native';
@@ -11,19 +11,22 @@ const PatientProfileScreen = ({ navigation }) => {
   const [userProfile, setUserProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        const data = await api.getMe();
-        setUserProfile(data);
-      } catch (error) {
-        console.error('Failed to load profile:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadProfile();
-  }, []);
+  const loadProfile = async () => {
+    try {
+      const data = await api.getMe();
+      setUserProfile(data);
+    } catch (error) {
+      console.error('Failed to load profile:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [])
+  );
 
   const signOut = async () => {
     await SecureStore.deleteItemAsync('userToken');

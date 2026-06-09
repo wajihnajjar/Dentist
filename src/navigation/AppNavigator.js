@@ -29,6 +29,7 @@ import DentistPatientsScreen from '../screens/dentist/DentistPatientsScreen';
 import DentistPatientDetailScreen from '../screens/dentist/DentistPatientDetailScreen';
 import DentistAppointmentDetailScreen from '../screens/dentist/DentistAppointmentDetailScreen';
 import DentistSettingsScreen from '../screens/dentist/DentistSettingsScreen';
+import DentistEditProfileScreen from '../screens/dentist/DentistEditProfileScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -154,6 +155,7 @@ const AppNavigator = () => (
     <Stack.Screen name="DentistPatientDetail" component={DentistPatientDetailScreen} />
     <Stack.Screen name="DentistAppointmentDetail" component={DentistAppointmentDetailScreen} />
     <Stack.Screen name="DentistSettings" component={DentistSettingsScreen} />
+    <Stack.Screen name="DentistEditProfile" component={DentistEditProfileScreen} />
   </Stack.Navigator>
 );
 

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CommonActions } from '@react-navigation/native';
+import { CommonActions, useFocusEffect } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
 import { api } from '../../api/client';
 import {
@@ -13,6 +13,7 @@ import {
   Stethoscope,
   Settings,
   Users,
+  Edit3,
 } from 'lucide-react-native';
 
 const DentistAccountScreen = ({ navigation }) => {
@@ -20,20 +21,23 @@ const DentistAccountScreen = ({ navigation }) => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        const res = await api.getMe();
-        // Assuming backend returns { user: {...}, profile: {...} }
-        setProfile({ ...res.profile, email: res.user?.email || res.email });
-      } catch (error) {
-        console.error('Failed to load profile:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadProfile();
-  }, []);
+  const loadProfile = async () => {
+    try {
+      const res = await api.getMe();
+      // Assuming backend returns { user: {...}, profile: {...} }
+      setProfile({ ...res.profile, email: res.user?.email || res.email });
+    } catch (error) {
+      console.error('Failed to load profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [])
+  );
 
   const signOut = async () => {
     try {
@@ -78,8 +82,15 @@ const DentistAccountScreen = ({ navigation }) => {
             <View className="flex-1 ml-4">
               <Text className="text-xl font-bold text-ink">{profile?.full_name || 'Loading...'}</Text>
               <View className="self-start bg-brand-50 px-3 py-1 rounded-full mt-2 border border-brand-100">
-                <Text className="text-brand-800 text-[12px] font-bold">{profile?.practice_name || 'My Clinic'}</Text>
+                <Text className="text-brand-800 text-[12px] font-bold">{profile?.specialty || 'My Clinic'}</Text>
               </View>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('DentistEditProfile', { profile })}
+                className="flex-row items-center bg-brand-50 px-4 py-2 rounded-full mt-3 border border-brand-100 self-start"
+              >
+                <Edit3 size={14} color="#0d9488" />
+                <Text className="text-brand-700 text-sm font-bold ml-1.5">Edit Profile</Text>
+              </TouchableOpacity>
             </View>
           </View>
       
