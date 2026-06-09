@@ -28,6 +28,15 @@ export const api = {
     return response.json();
   },
   
+  socialLogin: async (data) => {
+    const response = await fetch(`${BASE_URL}/auth/social-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return response.json();
+  },
+
   login: async (data) => {
     const response = await fetch(`${BASE_URL}/auth/login`, {
       method: 'POST',

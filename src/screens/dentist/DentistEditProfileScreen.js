@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Modal, FlatList, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Modal, FlatList, Dimensions, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, User, Phone, Lock, Mail, Building2, Stethoscope, GraduationCap, MapPin, FileText, Briefcase, BadgeDollarSign, Map as MapIcon } from 'lucide-react-native';
+import { ChevronLeft, User, Phone, Lock, Mail, Building2, Stethoscope, GraduationCap, MapPin, FileText, Briefcase, BadgeDollarSign, Map as MapIcon, Camera } from 'lucide-react-native';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 import { api } from '../../api/client';
 
 const STATES = ['Tunis', 'Sfax', 'Sousse', 'Kairouan', 'Bizerte', 'Gabes', 'Ariana', 'Gafsa', 'Monastir', 'Ben Arous'];
@@ -19,6 +20,7 @@ const DentistEditProfileScreen = ({ route, navigation }) => {
   const [phone, setPhone] = useState(profile?.phone || '');
   const [practiceName, setPracticeName] = useState(profile?.practice_name || '');
   const [bio, setBio] = useState(profile?.bio || '');
+  const [profileImage, setProfileImage] = useState(profile?.profile_image || null);
   
   // New Fields
   const [address, setAddress] = useState(profile?.address || '');
@@ -47,6 +49,27 @@ const DentistEditProfileScreen = ({ route, navigation }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (status !== 'granted') {
+      setError('Sorry, we need camera roll permissions to make this work!');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+      base64: true,
+    });
+
+    if (!result.canceled) {
+      setProfileImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
+    }
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     setError('');
@@ -66,6 +89,7 @@ const DentistEditProfileScreen = ({ route, navigation }) => {
         consultation_fee: consultationFee ? Number(consultationFee) : undefined,
         latitude: latitude,
         longitude: longitude,
+        profile_image: profileImage,
       };
       
       if (newPassword.trim()) {
@@ -118,6 +142,30 @@ const DentistEditProfileScreen = ({ route, navigation }) => {
             <Text className="text-red-700 font-medium text-sm">{error}</Text>
           </View>
         ) : null}
+
+        <View className="items-center mb-8">
+          <TouchableOpacity 
+            onPress={pickImage}
+            className="relative"
+          >
+            <View className="w-32 h-32 rounded-full bg-slate-100 items-center justify-center border-4 border-white shadow-lg shadow-slate-900/10 overflow-hidden">
+              {profileImage ? (
+                <Image 
+                  source={{ uri: profileImage }} 
+                  className="w-full h-full"
+                />
+              ) : (
+                <User size={48} color="#94a3b8" />
+              )}
+            </View>
+            <View className="absolute bottom-0 right-0 bg-brand-600 w-10 h-10 rounded-full items-center justify-center border-4 border-white shadow-sm">
+              <Camera size={18} color="white" />
+            </View>
+          </TouchableOpacity>
+          <Text className="text-slate-500 text-[13px] font-bold uppercase tracking-wider mt-4">
+            Profile Photo
+          </Text>
+        </View>
 
         <View className="mb-5">
           <Text className="text-slate-500 text-[13px] font-bold uppercase tracking-wider mb-2 ml-1">
